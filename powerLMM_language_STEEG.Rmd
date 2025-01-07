@@ -1,0 +1,160 @@
+---
+title: "powerLMM"
+output: html_document
+date: "2024-02-08"
+---
+
+To conduct the power sensitivity test in R, we first generated a simulated dataset using the mean and SD from VPEEG study. The sample size of dataset was based on previous studies. Then, we created linear mixed model (LMM) following our analysis plan. Then, we adjusted the estimate of each predictor manually (e.g., fixef(model1)["condition"] <- 0.7) and calculated the corresponding effect size r. After adjusting the estimate, we ran power analysis using “powerSim” and then checked if the power was higher than 80%. By setting different estimates/effect sizes, we were able to learn the sample size can detect what effect size with 80%. If the power is lower than 80%, we would increase the estimate/effect size. If the power is higher than 80%, we would decrease the estimate/effect size. 
+
+```{r data simulation}
+library(lmerTest)
+
+# Set seed for reproducibility
+set.seed(42)
+
+# Number of subjects
+n_subjects <- 80 # to examine how large effect size we can detect with this sample size
+
+# Generate random values for diversity (one for each subject)
+diversity <- rnorm(n_subjects, mean = 0.24, sd = 0.27) # based on VPEEG network diversity
+
+# Number of observations per subject
+n_obs_per_subject <- 4 # 2 windows for each speaker, 4 in total
+
+# Create a pattern of condition
+condition <- rep(c(1, 0), times = n_subjects * n_obs_per_subject / 2) # 1 indicates own-race, 0 indicates other-race
+
+# Repeat diversity values for each observation within the subject
+diversity <- rep(diversity, each = n_obs_per_subject) # each subject should have the same diversity value
+
+# Create a data frame with generated data
+data <- data.frame(diversity = diversity, condition = condition)
+
+# Generate random values for the grouping variable (ID)
+data$ID <- factor(rep(1:n_subjects, each = n_obs_per_subject))
+
+data$theta <- rnorm(n_subjects * n_obs_per_subject, 0.08, 1.81) # generate scores based on the VPEEG
+data$mu <- rnorm(n_subjects * n_obs_per_subject, -0.53, 1.26) # generate scores based on the VPEEG
+data$FAA <- rnorm(n_subjects * n_obs_per_subject, .003, .03)  # generate scores based on the VPEEG
+
+# Generate child language background
+data$child_language <- rep(sample(c(0, 1), n_subjects, replace = TRUE), each = n_obs_per_subject)
+
+# Inspect the first few rows
+head(data)
+
+```
+
+
+```{r mu language condition effect}
+library(lmerTest)
+library(simr)
+# Fit the linear mixed-effects model
+model1 <- lmer(mu ~ 1 + condition + diversity + 
+                diversity:condition + 
+                child_language + 
+                child_language:condition + child_language:condition:diversity+
+                (1 | ID), 
+              data = data)
+
+# Summary of the model
+summary(model1)
+
+fixef(model1)["condition"]
+fixef(model1)["condition"] <- 0.83 # test the effect size to reach 80% power
+isSingular(model1)
+powerSim(model1, test=fixed("condition"),nsim=1000)
+
+fixef(model1)
+all_t<-summary(model1)$coefficients[, "t value"]
+all_df<-summary(model1)$coefficients[, "df"]
+t <- all_t[2]
+df <- all_df[2]
+r <- sqrt(t^2/(t^2+df))
+r
+```
+
+```{r mu diversity and language interaction effect}
+fixef(model1)["condition:diversity"]
+fixef(model1)["condition:diversity"] <- -2.1 # test the effect size to reach 80% power
+
+powerSim(model1, test=fixed("condition:diversity"))
+
+fixef(model1)
+all_t<-summary(model1)$coefficients[, "t value"]
+all_df<-summary(model1)$coefficients[, "df"]
+t <- all_t[5]
+df <- all_df[5]
+r <- sqrt(t^2/(t^2+df))
+r
+```
+```{r mu child language background and language interaction effect}
+fixef(model1)["condition:child_language"]
+fixef(model1)["condition:child_language"] <- -1.0 # test the effect size to reach 80% power
+
+powerSim(model1, test=fixed("condition:child_language"))
+
+fixef(model1)
+all_t<-summary(model1)$coefficients[, "t value"]
+all_df<-summary(model1)$coefficients[, "df"]
+t <- all_t[6]
+df <- all_df[6]
+r <- sqrt(t^2/(t^2+df))
+r
+```
+
+```{r FAA language condition effect}
+library(lmerTest)
+library(simr)
+# Fit the linear mixed-effects model
+model1 <- lmer(FAA ~ 1 + condition + diversity + 
+                diversity:condition + 
+                child_language + 
+                child_language:condition + child_language:condition:diversity+
+                (1 | ID), 
+              data = data)
+
+# Summary of the model
+summary(model1)
+
+fixef(model1)["condition"]
+fixef(model1)["condition"] <- 0.02 # test the effect size to reach 80% power
+
+powerSim(model1, test=fixed("condition"))
+
+fixef(model1)
+all_t<-summary(model1)$coefficients[, "t value"]
+all_df<-summary(model1)$coefficients[, "df"]
+t <- all_t[2]
+df <- all_df[2]
+r <- sqrt(t^2/(t^2+df))
+r
+```
+```{r FAA diversity and language interaction effect}
+fixef(model1)["condition:diversity"]
+fixef(model1)["condition:diversity"] <- -0.055 # test the effect size to reach 80% power
+
+powerSim(model1, test=fixed("condition:diversity"))
+
+fixef(model1)
+all_t<-summary(model1)$coefficients[, "t value"]
+all_df<-summary(model1)$coefficients[, "df"]
+t <- all_t[5]
+df <- all_df[5]
+r <- sqrt(t^2/(t^2+df))
+r
+```
+```{r FAA child language background and language interaction effect}
+fixef(model1)["condition:child_language"]
+fixef(model1)["condition:child_language"] <- -0.025 # test the effect size to reach 80% power
+
+powerSim(model1, test=fixed("condition:child_language"))
+
+fixef(model1)
+all_t<-summary(model1)$coefficients[, "t value"]
+all_df<-summary(model1)$coefficients[, "df"]
+t <- all_t[6]
+df <- all_df[6]
+r <- sqrt(t^2/(t^2+df))
+r
+```
